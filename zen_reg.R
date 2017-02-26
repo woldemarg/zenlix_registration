@@ -7,7 +7,6 @@ library(mailR)
 #===basic settings===#
 zDmin <- readLines("../etpp.txt")
 
-
 #host <- zDmin[6] #с работы
 host <- zDmin[7] #из дома
 
@@ -15,13 +14,6 @@ host <- zDmin[7] #из дома
 #===выборка новых анкетных записей===#
 new <- read_csv(url(zDmin[8])) %>%
   filter(is.na(status))
-
-
-#===настройки драйвера RSelenium===#
-remDr <-
-  remoteDriver(remoteServerAddr = "localhost",
-               port = 4444,
-               browserName = "firefox")
 
 
 #===функции RMySQL===#
@@ -54,7 +46,8 @@ connectInsert <- function(q, FUN = dbExecute) {
 
 
 #===вход в админ-панель===#
-remDr$open()#открытие сессии
+rD <- rsDriver()#открытие сессии
+remDr <- rD[["client"]]
 remDr$navigate("http://online.e-tpp.org")
 remDr$setImplicitWaitTimeout(milliseconds = 5000)
 remDr$findElement(using = "css", "input[name = 'login']")$sendKeysToElement(list(zDmin[1]))
@@ -71,7 +64,7 @@ for (i in 1:nrow(new)) {
     paste(new$adr_str[i], new$adr_city[i], new$adr_index[i], sep = ", ")
 
   uID <- numeric()
-  counter <- 0#счетчик попыток регистрации
+  counter <- 1#счетчик попыток регистрации
 
   #===цикл создания нового пользователя===#
   while (length(uID) == 0 & counter <= 2) {
@@ -265,10 +258,12 @@ for (i in 1:nrow(new)) {
     }
   }
 
-  #сообщение об ошибке регистрации
+  #сообщение об ошибке после двух неудачных попыток регистрации
   if (length(uID) == 0) {
     cat(paste("Registration of", uName, "has failed\n", sep = " "))
   }
 }
 
-remDr$close()#окончание сессии
+#окончание сессии
+remDr$close()
+rD[["server"]]$stop()
