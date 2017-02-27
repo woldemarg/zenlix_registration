@@ -17,7 +17,7 @@ new <- read_csv(url(zDmin[8])) %>%
 
 
 #===функции RMySQL===#
-connectRead <- function(t, FUN = dbReadTable) {
+conSELECT <- function(q, FUN = dbGetQuery) {
   zCon <-
     dbConnect(
       RMySQL::MySQL(),
@@ -26,11 +26,11 @@ connectRead <- function(t, FUN = dbReadTable) {
       user = zDmin[3],
       password = zDmin[4]
     )
-  val <- FUN(zCon, t)
-  dbDisconnect(zCon)#обязательное закрытие соединения
+  val <- FUN(zCon, q)
+  dbDisconnect(zCon)#закрытие соединения (!)
   return(val)
 }
-connectInsert <- function(q, FUN = dbExecute) {
+conINSERT <- function(q, FUN = dbExecute) {
   zCon <-
     dbConnect(
       RMySQL::MySQL(),
@@ -46,8 +46,34 @@ connectInsert <- function(q, FUN = dbExecute) {
 
 
 #===вход в админ-панель===#
-rD <- rsDriver()#открытие сессии
+#открытие сессии
+rD <-
+  rsDriver(
+    port = 4444L,
+    browser = "chrome",
+    #or "latest"
+    version = "3.1.0",
+    #or "latest"
+    chromever = "2.27",
+    #or "latest"
+    geckover = "0.14.0",
+    #or "latest"
+    iedrver = NULL,
+    #or "latest"
+    phantomver = NULL,
+    #or "2.1.1"
+    verbose = FALSE,
+    check = FALSE #загрузка обновлений драйверов
+  )
+
 remDr <- rD[["client"]]
+
+# remDr <-
+#   remoteDriver(remoteServerAddr = "localhost",
+#                port = 4444,
+#                browserName = "firefox")
+# remDr$open()
+
 remDr$navigate("http://online.e-tpp.org")
 remDr$setImplicitWaitTimeout(milliseconds = 5000)
 remDr$findElement(using = "css", "input[name = 'login']")$sendKeysToElement(list(zDmin[1]))
@@ -62,6 +88,7 @@ for (i in 1:nrow(new)) {
     paste(sample(c(1:9, LETTERS), 6, replace = TRUE), collapse = "")
   uAdr <-
     paste(new$adr_str[i], new$adr_city[i], new$adr_index[i], sep = ", ")
+  uLogin <- tolower(new$mail_p[i])
 
   uID <- numeric()
   counter <- 1#счетчик попыток регистрации
@@ -73,15 +100,22 @@ for (i in 1:nrow(new)) {
     #создание пользователя
     remDr$navigate("http://online.e-tpp.org/users?create")
     Sys.sleep(3)
-    remDr$findElement(using = "css", "input[name = 'login_user']")$sendKeysToElement(list(new$mail_p[i]))
+    remDr$findElement(using = "css", "input[name = 'login_user']")$sendKeysToElement(list(uLogin))
     remDr$findElement(using = "css", "input[id = 'exampleInputPassword1']")$sendKeysToElement(list(uPass))
     remDr$findElement(using = "css", "input[id = 'fio_user']")$sendKeysToElement(list(uName))
     remDr$findElement(using = "class", "btn-success")$clickElement()
     Sys.sleep(3)
 
+    #откл. предупреждения
+    oldw <- getOption("warn")
+    options(warn = -1)
+
     #id нового пользователя
-    uID <- connectRead("users") %>%
-      filter(login == new$mail_p[i]) %>% .$id
+    uID <-
+      conSELECT(paste("SELECT id FROM users  WHERE login='", uLogin, "';", sep =  ""))
+
+    #вкл. предупреждения
+    options(warn = oldw)
 
     #заполнение дополнительных полей,
     #если пользователь создан успешно
@@ -94,10 +128,10 @@ for (i in 1:nrow(new)) {
             uID,
             "','1','",
             new$company[i],
-            "','Company name');",
+            "','Company');",
             sep = ""
           )
-        connectInsert(SQL)
+        conINSERT(SQL)
       }
 
       if (!is.na(new$edrpou[i])) {
@@ -108,10 +142,10 @@ for (i in 1:nrow(new)) {
             uID,
             "','2','",
             new$edrpou[i],
-            "','Company EDRPOU');",
+            "','EDRPOU');",
             sep = ""
           )
-        connectInsert(SQL)
+        conINSERT(SQL)
       }
 
       if (!is.na(new$tel_comp[i])) {
@@ -122,10 +156,10 @@ for (i in 1:nrow(new)) {
             uID,
             "','3','",
             new$tel_comp[i],
-            "','Company tel');",
+            "','Tel.');",
             sep = ""
           )
-        connectInsert(SQL)
+        conINSERT(SQL)
       }
 
       if (!is.na(new$mail_comp[i])) {
@@ -136,10 +170,10 @@ for (i in 1:nrow(new)) {
             uID,
             "','4','",
             new$mail_comp[i],
-            "','Company mail');",
+            "','E-mail');",
             sep = ""
           )
-        connectInsert(SQL)
+        conINSERT(SQL)
       }
 
       if (!is.na(new$web[i])) {
@@ -150,10 +184,10 @@ for (i in 1:nrow(new)) {
             uID,
             "','5','",
             new$web[i],
-            "','Company Web');",
+            "','Web');",
             sep = ""
           )
-        connectInsert(SQL)
+        conINSERT(SQL)
       }
 
       if (!is.na(new$activity[i])) {
@@ -164,10 +198,10 @@ for (i in 1:nrow(new)) {
             uID,
             "','6','",
             new$activity[i],
-            "','Company activity');",
+            "','Activity');",
             sep = ""
           )
-        connectInsert(SQL)
+        conINSERT(SQL)
       }
 
       if (!is.na(new$dep[i])) {
@@ -178,10 +212,10 @@ for (i in 1:nrow(new)) {
             uID,
             "','8','",
             new$dep[i],
-            "','Company dep');",
+            "','Department');",
             sep = ""
           )
-        connectInsert(SQL)
+        conINSERT(SQL)
       }
 
       if (!is.na(new$pos[i])) {
@@ -193,7 +227,7 @@ for (i in 1:nrow(new)) {
                 uID,
                 ";",
                 sep = "")
-        connectInsert(SQL)
+        conINSERT(SQL)
       }
 
       #обязательные поля
@@ -205,7 +239,7 @@ for (i in 1:nrow(new)) {
               uID,
               ";",
               sep = "")
-      connectInsert(SQLmail)
+      conINSERT(SQLmail)
 
       SQLtel <-
         paste("UPDATE users SET tel='",
@@ -215,7 +249,7 @@ for (i in 1:nrow(new)) {
               uID,
               ";",
               sep = "")
-      connectInsert(SQLtel)
+      conINSERT(SQLtel)
 
       SQLadr <-
         paste("UPDATE users SET adr='", #адрес нового пользователя
@@ -224,7 +258,7 @@ for (i in 1:nrow(new)) {
               uID,
               ";",
               sep = "")
-      connectInsert(SQLadr)
+      conINSERT(SQLadr)
 
 
       #===рассылка уведомления===#
@@ -236,7 +270,7 @@ for (i in 1:nrow(new)) {
         subject = paste("Реєстрація нового користувача:", uName, sep = " "),
         body = paste(
           "Доброго дня!\n\nДякуємо за реєстрацію в системі обробки електронних заявок online.e-tpp.org.\n\nДля входу в систему використовуйте:\nлогін:",
-          new$mail_p[i],
+          uLogin,
           "\nпароль:",
           uPass,
           "\n\nОформити заявку на послуги управління експертиз Запорізької ТПП, а також змінити Ваші особові дані, пароль і налаштування електронного кабінету Ви зможете після входу в систему за адресою - http://e-tpp.org/podaty-zayavku/ \n\n\n--\nЗ повагою,\nкоманда експертів ЗТПП\nт. (061) 213-43-25\nф. (061) 213-50-27\nм. (050) 488-03-83\nнаш сайт: e-tpp.org",
@@ -264,6 +298,6 @@ for (i in 1:nrow(new)) {
   }
 }
 
-#окончание сессии
+#окончание сессии (!)
 remDr$close()
 rD[["server"]]$stop()
