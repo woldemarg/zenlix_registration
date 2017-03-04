@@ -1,14 +1,13 @@
-library(tidyverse)
-library(RMySQL)
-library(RSelenium)
-library(mailR)
-
+library(tidyverse) #обработка данных
+library(RMySQL)    #работа с phpmyadmin
+library(RSelenium) #регистрация через сайт
+library(mailR)     #рассылка подтверждений
 
 #===basic settings===#
 zDmin <- readLines("../etpp.txt")
 
-#host <- zDmin[6] #с работы
-host <- zDmin[7] #из дома
+#host <- zDmin[6] #работа
+host <- zDmin[7] #дом
 
 
 #===выборка новых анкетных записей===#
@@ -46,34 +45,15 @@ conINSERT <- function(q, FUN = dbExecute) {
 
 
 #===вход в админ-панель===#
-#открытие сессии
-rD <-
-  rsDriver(
-    port = 4444L,
-    browser = "chrome",
-    #or "latest"
-    version = "3.1.0",
-    #or "latest"
-    chromever = "2.27",
-    #or "latest"
-    geckover = "0.14.0",
-    #or "latest"
-    iedrver = NULL,
-    #or "latest"
-    phantomver = NULL,
-    #or "2.1.1"
-    verbose = FALSE,
-    check = FALSE #загрузка обновлений драйверов
-  )
 
-remDr <- rD[["client"]]
+#проблем автозапуска сервера на рабочем ПК - https://github.com/woldemarg/zenlix_registration/issues/1
+#ручной старт сервера с параметрами по умолчанию
+shell("start_selenium_server.bat")
+remDr <- remoteDriver()
 
-# remDr <-
-#   remoteDriver(remoteServerAddr = "localhost",
-#                port = 4444,
-#                browserName = "firefox")
-# remDr$open()
-
+#открытие браузера firefox и навигация
+Sys.sleep(15)
+remDr$open(silent = TRUE) #без вывода сообщений в консоль
 remDr$navigate("http://online.e-tpp.org")
 remDr$setImplicitWaitTimeout(milliseconds = 5000)
 remDr$findElement(using = "css", "input[name = 'login']")$sendKeysToElement(list(zDmin[1]))
@@ -85,7 +65,7 @@ remDr$findElement(using = "class", "btn-block")$clickElement()
 for (i in 1:nrow(new)) {
   uName <- paste(new$l_name[i], new$f_name[i], sep = " ")
   uPass <-
-    paste(sample(c(1:9, LETTERS), 6, replace = TRUE), collapse = "")
+    paste(sample(c(1:9, LETTERS[-15]), 6, replace = TRUE), collapse = "")# пароль без 0 и O
   uAdr <-
     paste(new$adr_str[i], new$adr_city[i], new$adr_index[i], sep = ", ")
   uLogin <- tolower(new$mail_p[i])
@@ -298,6 +278,7 @@ for (i in 1:nrow(new)) {
   }
 }
 
-#окончание сессии (!)
+#окончание сессии и ручная остановка сервера(!)
+#описание проблемы - см. https://github.com/woldemarg/zenlix_registration/issues/1
 remDr$close()
-rD[["server"]]$stop()
+system2("curl.exe", args = "-s http://localhost:4444/extra/LifecycleServlet?action=shutdown")
