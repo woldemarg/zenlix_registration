@@ -1,4 +1,3 @@
-#минимум сторонних библиотек
 library(DBI)       #для работы RMySQL
 library(RMySQL)    #работа с БД phpmyadmin
 library(RSelenium) #навигация в Интернет
