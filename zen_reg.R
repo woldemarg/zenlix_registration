@@ -262,7 +262,7 @@ if (nrow(new) != 0) {
       #===рассылка уведомления===#
       #письмо по абзацам
       zLetter <-
-        read.csv("zLetter.csv",
+        read.csv("reg_letter.csv",
                  encoding = "UTF-8",
                  stringsAsFactors = FALSE)
 
@@ -318,7 +318,6 @@ if (nrow(new) != 0) {
   #окончание сессии и ручная остановка сервера(!)
   remDr$close()
   system2("curl.exe", args = "-s http://localhost:4444/extra/LifecycleServlet?action=shutdown") #-s for silent mode
-
 
 } else {
   cat("You've got no users to register")
