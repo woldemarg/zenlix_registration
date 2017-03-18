@@ -1,22 +1,26 @@
-library(tidyverse) #обработка данных
-library(RMySQL)    #работа с phpmyadmin
-library(RSelenium) #регистрация через сайт
-library(mailR)     #рассылка подтверждений
+#минимум сторонних библиотек
+library(DBI)       #для работы RMySQL
+library(RMySQL)    #работа с БД phpmyadmin
+library(RSelenium) #навигация в Интернет
+library(mailR)     #рассылка почты
 
 #===basic settings===#
-zDmin <- readLines("../etpp.txt")
+setwd("D:/OneDrive/myRepos/zenlix_registration") #рабочая директория
 
-#host <- zDmin[6] #работа
-host <- zDmin[7] #дом
+args <-
+  commandArgs(trailingOnly = TRUE) #чтение аргументов из bat-файла
 
+zDmin <- readLines("../etpp.txt") #скрытые параметры
 
-#===выборка новых анкетных записей===#
-new <- read_csv(url(zDmin[8])) %>%
-  filter(is.na(status))
-
+if (args[1] == "atHome") {
+  host <- zDmin[7]
+} else if (args[1] == "atWork") {
+  host <- zDmin[6]
+}
 
 #===функции RMySQL===#
 conSELECT <- function(q, FUN = dbGetQuery) {
+  #создание соединения каждый раз при обращении к БД
   zCon <-
     dbConnect(
       RMySQL::MySQL(),
@@ -29,6 +33,7 @@ conSELECT <- function(q, FUN = dbGetQuery) {
   dbDisconnect(zCon)#закрытие соединения (!)
   return(val)
 }
+
 conINSERT <- function(q, FUN = dbExecute) {
   zCon <-
     dbConnect(
@@ -43,41 +48,72 @@ conINSERT <- function(q, FUN = dbExecute) {
   dbDisconnect(zCon)
 }
 
+#===выборка новых анкетных записей===#
 
-#===вход в админ-панель===#
+#список логинов активных пользователей (status = 1)
+regLogs <- conSELECT("SELECT login FROM users WHERE status=1")
 
-#проблем автозапуска сервера на рабочем ПК - https://github.com/woldemarg/zenlix_registration/issues/1
-#ручной старт сервера с параметрами по умолчанию
-shell("start_selenium_server.bat")
-remDr <- remoteDriver()
+#список пользователей из google forms с проверенными анкетами
+allForms <-
+  read.csv(url(zDmin[8]),
+           encoding = "UTF-8",
+           stringsAsFactors = FALSE)
 
-#открытие браузера firefox и навигация
-Sys.sleep(15)
-remDr$open(silent = TRUE) #без вывода сообщений в консоль
-remDr$navigate("http://online.e-tpp.org")
-remDr$setImplicitWaitTimeout(milliseconds = 5000)
-remDr$findElement(using = "css", "input[name = 'login']")$sendKeysToElement(list(zDmin[1]))
-remDr$findElement(using = "css", "input[name = 'password']")$sendKeysToElement(list(zDmin[2]))
-remDr$findElement(using = "class", "btn-block")$clickElement()
+okForms <- subset(allForms, status == "ok")
+
+#список новых пользователей для регистрации
+new <- okForms[!tolower(okForms$mail_p) %in% regLogs$login,]
+
+#проверка наличия данных для внесения в БД
+if (nrow(new) != 0) {
+  #===вход в админ-панель===#
+
+  #проверка статуса сервера и остановка, если был запущен в фоне
+  oldw <- getOption("warn")
+  options(warn = -1) #warns off
+
+  isSeleniumRunning <-
+    tryCatch(
+      readLines("http://localhost:4444/wd/hub/status"),
+      error = function(e) {
+        #no error message here
+      }
+    )
+
+  if (!inherits(isSeleniumRunning, "try-error")) {
+    system2("curl.exe", args = "-s http://localhost:4444/extra/LifecycleServlet?action=shutdown") #-s for silent mode
+  }
+
+  options(warn = oldw) #warns on
+
+  #ручной старт сервера с параметрами по умолчанию (firefox, порт 4444)
+  shell("run_selenium_server.bat")
+  Sys.sleep(20) #ожидание запуска сервера - 20 сек. (для рабочего ПК)
+  remDr <- remoteDriver()
+
+  #открытие браузера и навигация
+  remDr$open(silent = TRUE) #без вывода сообщений в консоль
+  remDr$navigate("http://online.e-tpp.org")
+  remDr$setImplicitWaitTimeout(milliseconds = 5000)
+  remDr$findElement(using = "css", "input[name = 'login']")$sendKeysToElement(list(zDmin[1]))
+  remDr$findElement(using = "css", "input[name = 'password']")$sendKeysToElement(list(zDmin[2]))
+  remDr$findElement(using = "class", "btn-block")$clickElement()
 
 
-#===цикл обработки записей===#
-for (i in 1:nrow(new)) {
-  uName <- paste(new$l_name[i], new$f_name[i], sep = " ")
-  uPass <-
-    paste(sample(c(1:9, LETTERS[-15]), 6, replace = TRUE), collapse = "")# пароль без 0 и O
-  uAdr <-
-    paste(new$adr_str[i], new$adr_city[i], new$adr_index[i], sep = ", ")
-  uLogin <- tolower(new$mail_p[i])
+  #===цикл обработки новых записей===#
+  for (i in 1:nrow(new)) {
+    uName <- paste(new$l_name[i], new$f_name[i], sep = " ")
 
-  uID <- numeric()
-  counter <- 1#счетчик попыток регистрации
+    #генерация пароля без цифры "0" и буквы "O"
+    uPass <-
+      paste(sample(c(1:9, LETTERS[-15]), 6, replace = TRUE), collapse = "")
 
-  #===цикл создания нового пользователя===#
-  while (length(uID) == 0 & counter <= 2) {
-    counter <- counter + 1
+    uAdr <-
+      paste(new$adr_str[i], new$adr_city[i], new$adr_index[i], sep = ", ")
 
-    #создание пользователя
+    uLogin <- tolower(new$mail_p[i])
+
+    #===создания нового пользователя===#
     remDr$navigate("http://online.e-tpp.org/users?create")
     Sys.sleep(3)
     remDr$findElement(using = "css", "input[name = 'login_user']")$sendKeysToElement(list(uLogin))
@@ -86,22 +122,19 @@ for (i in 1:nrow(new)) {
     remDr$findElement(using = "class", "btn-success")$clickElement()
     Sys.sleep(3)
 
-    #откл. предупреждения
     oldw <- getOption("warn")
-    options(warn = -1)
+    options(warn = -1) #warns off
 
     #id нового пользователя
     uID <-
       conSELECT(paste("SELECT id FROM users  WHERE login='", uLogin, "';", sep =  ""))
 
-    #вкл. предупреждения
-    options(warn = oldw)
+    options(warn = oldw) #warns on
 
-    #заполнение дополнительных полей,
-    #если пользователь создан успешно
+    #заполнение доп. полей таблицы user_data
     if (length(uID) != 0) {
+      #название предприятия
       if (!is.na(new$company[i])) {
-        #название предприятия
         SQL <-
           paste(
             "INSERT INTO user_data (user_id,field_id,field_val,field_name) VALUES ('",
@@ -114,8 +147,8 @@ for (i in 1:nrow(new)) {
         conINSERT(SQL)
       }
 
+      #ЕДРПОУ предприятия
       if (!is.na(new$edrpou[i])) {
-        #ЕДРПОУ предприятия
         SQL <-
           paste(
             "INSERT INTO user_data (user_id,field_id,field_val,field_name) VALUES ('",
@@ -128,8 +161,8 @@ for (i in 1:nrow(new)) {
         conINSERT(SQL)
       }
 
+      #телефон предприятия
       if (!is.na(new$tel_comp[i])) {
-        #телефон предприятия
         SQL <-
           paste(
             "INSERT INTO user_data (user_id,field_id,field_val,field_name) VALUES ('",
@@ -142,22 +175,8 @@ for (i in 1:nrow(new)) {
         conINSERT(SQL)
       }
 
-      if (!is.na(new$mail_comp[i])) {
-        #почта предприятия
-        SQL <-
-          paste(
-            "INSERT INTO user_data (user_id,field_id,field_val,field_name) VALUES ('",
-            uID,
-            "','4','",
-            new$mail_comp[i],
-            "','E-mail');",
-            sep = ""
-          )
-        conINSERT(SQL)
-      }
-
+      #сайт предприятия
       if (!is.na(new$web[i])) {
-        #сайт предприятия
         SQL <-
           paste(
             "INSERT INTO user_data (user_id,field_id,field_val,field_name) VALUES ('",
@@ -170,8 +189,8 @@ for (i in 1:nrow(new)) {
         conINSERT(SQL)
       }
 
+      #направление деятельности
       if (!is.na(new$activity[i])) {
-        #направление деятельности
         SQL <-
           paste(
             "INSERT INTO user_data (user_id,field_id,field_val,field_name) VALUES ('",
@@ -184,8 +203,8 @@ for (i in 1:nrow(new)) {
         conINSERT(SQL)
       }
 
+      #отдел
       if (!is.na(new$dep[i])) {
-        #подразделение
         SQL <-
           paste(
             "INSERT INTO user_data (user_id,field_id,field_val,field_name) VALUES ('",
@@ -198,8 +217,8 @@ for (i in 1:nrow(new)) {
         conINSERT(SQL)
       }
 
+      #должность
       if (!is.na(new$pos[i])) {
-        #должность
         SQL <-
           paste("UPDATE users SET posada='",
                 new$pos[i],
@@ -210,10 +229,10 @@ for (i in 1:nrow(new)) {
         conINSERT(SQL)
       }
 
-      #обязательные поля
+      #заполнение полей таблицы users
+      #почта
       SQLmail <-
         paste("UPDATE users SET email='",
-              #почта нового пользователя
               new$mail_p[i],
               "' WHERE id=",
               uID,
@@ -221,9 +240,9 @@ for (i in 1:nrow(new)) {
               sep = "")
       conINSERT(SQLmail)
 
+      #телефон
       SQLtel <-
         paste("UPDATE users SET tel='",
-              #телефон нового пользователя
               new$tel[i],
               "' WHERE id=",
               uID,
@@ -231,8 +250,9 @@ for (i in 1:nrow(new)) {
               sep = "")
       conINSERT(SQLtel)
 
+      #адрес
       SQLadr <-
-        paste("UPDATE users SET adr='", #адрес нового пользователя
+        paste("UPDATE users SET adr='",
               uAdr,
               "' WHERE id=",
               uID,
@@ -240,21 +260,45 @@ for (i in 1:nrow(new)) {
               sep = "")
       conINSERT(SQLadr)
 
-
       #===рассылка уведомления===#
+      #письмо по абзацам
+      zLetter <-
+        read.csv("zLetter.csv",
+                 encoding = "UTF-8",
+                 stringsAsFactors = FALSE)
+
+      #отправка
       send.mail(
         from = c(zDmin[10]),
         to = new$mail_p[i],
         bcc = "admin@e-tpp.org",
         replyTo = c(zDmin[11]),
-        subject = paste("Реєстрація нового користувача:", uName, sep = " "),
+        subject = paste(zLetter$p0, uName, sep = ""),
         body = paste(
-          "Доброго дня!\n\nДякуємо за реєстрацію в системі обробки електронних заявок online.e-tpp.org.\n\nДля входу в систему використовуйте:\nлогін:",
+          zLetter$p1,
+          "\n\n",
+          zLetter$p2,
+          "\n\n",
+          zLetter$p3,
+          "\n",
+          zLetter$p4,
           uLogin,
-          "\nпароль:",
+          "\n",
+          zLetter$p5,
           uPass,
-          "\n\nОформити заявку на послуги управління експертиз Запорізької ТПП, а також змінити Ваші особові дані, пароль і налаштування електронного кабінету Ви зможете після входу в систему за адресою - http://e-tpp.org/podaty-zayavku/ \n\n\n--\nЗ повагою,\nкоманда експертів ЗТПП\nт. (061) 213-43-25\nф. (061) 213-50-27\nм. (050) 488-03-83\nнаш сайт: e-tpp.org",
-          sep = " "
+          "\n\n",
+          zLetter$p6,
+          "\n\n",
+          zLetter$p7,
+          "\n---\n",
+          zLetter$p8,
+          "\n",
+          zLetter$p9,
+          "\n",
+          zLetter$p10,
+          "\n",
+          zLetter$p11,
+          sep = ""
         ),
         encoding = "utf-8",
         smtp = list(
@@ -272,13 +316,11 @@ for (i in 1:nrow(new)) {
     }
   }
 
-  #сообщение об ошибке после двух неудачных попыток регистрации
-  if (length(uID) == 0) {
-    cat(paste("Registration of", uName, "has failed\n", sep = " "))
-  }
-}
+  #окончание сессии и ручная остановка сервера(!)
+  remDr$close()
+  system2("curl.exe", args = "-s http://localhost:4444/extra/LifecycleServlet?action=shutdown") #-s for silent mode
 
-#окончание сессии и ручная остановка сервера(!)
-#описание проблемы - см. https://github.com/woldemarg/zenlix_registration/issues/1
-remDr$close()
-system2("curl.exe", args = "-s http://localhost:4444/extra/LifecycleServlet?action=shutdown")
+
+} else {
+  cat("You've got no users to register")
+}
