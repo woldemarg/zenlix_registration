@@ -18,7 +18,7 @@ if (args[1] == "atHome") {
 }
 
 #===функции RMySQL===#
-conSELECT <- function(q, FUN = dbGetQuery) {
+dbSELECT <- function(q, FUN = dbGetQuery) {
   #создание соединения каждый раз при обращении к БД
   zCon <-
     dbConnect(
@@ -33,7 +33,7 @@ conSELECT <- function(q, FUN = dbGetQuery) {
   return(val)
 }
 
-conINSERT <- function(q, FUN = dbExecute) {
+dbMANIPULATE <- function(q, FUN = dbExecute) {
   zCon <-
     dbConnect(
       RMySQL::MySQL(),
@@ -50,7 +50,7 @@ conINSERT <- function(q, FUN = dbExecute) {
 #===выборка новых анкетных записей===#
 
 #список логинов активных пользователей (status = 1)
-regLogs <- conSELECT("SELECT login FROM users WHERE status=1")
+regLogs <- dbSELECT("SELECT login FROM users WHERE status=1")
 
 #список пользователей из google forms с проверенными анкетами
 allForms <-
@@ -61,7 +61,13 @@ allForms <-
 okForms <- subset(allForms, status == "ok")
 
 #список новых пользователей для регистрации
-new <- okForms[!tolower(okForms$mail_p) %in% regLogs$login,]
+usrs <- okForms[!tolower(okForms$email) %in% regLogs$login,]
+
+#удаление апострофов в тексте для избежания ошибок в SQL statements
+new <-
+  as.data.frame(t(sapply(
+    usrs, gsub, pattern = "'", replacement = ""
+  )))
 
 #проверка наличия данных для внесения в БД
 if (nrow(new) != 0) {
@@ -110,7 +116,7 @@ if (nrow(new) != 0) {
     uAdr <-
       paste(new$adr_str[i], new$adr_city[i], new$adr_index[i], sep = ", ")
 
-    uLogin <- tolower(new$mail_p[i])
+    uLogin <- tolower(new$email[i])
 
     #===создания нового пользователя===#
     remDr$navigate("http://online.e-tpp.org/users?create")
@@ -126,196 +132,219 @@ if (nrow(new) != 0) {
 
     #id нового пользователя
     uID <-
-      conSELECT(paste("SELECT id FROM users  WHERE login='", uLogin, "';", sep =  ""))
+      dbSELECT(paste("SELECT id FROM users  WHERE login='", uLogin, "';", sep =  ""))
 
     options(warn = oldw) #warns on
 
     #заполнение доп. полей таблицы user_data
     if (length(uID) != 0) {
-      #название предприятия
-      if (!is.na(new$company[i])) {
-        SQL <-
-          paste(
-            "INSERT INTO user_data (user_id,field_id,field_val,field_name) VALUES ('",
-            uID,
-            "','1','",
-            new$company[i],
-            "','Company');",
-            sep = ""
-          )
-        conINSERT(SQL)
-      }
+      #error handling
+      out <- tryCatch({
+        #название предприятия
+        if (!is.na(new$company[i])) {
+          SQL <-
+            paste(
+              "INSERT INTO user_data (user_id,field_id,field_val,field_name) VALUES ('",
+              uID,
+              "','1','",
+              new$company[i],
+              "','Company');",
+              sep = ""
+            )
+          dbMANIPULATE(SQL)
+        }
 
-      #ЕДРПОУ предприятия
-      if (!is.na(new$edrpou[i])) {
-        SQL <-
-          paste(
-            "INSERT INTO user_data (user_id,field_id,field_val,field_name) VALUES ('",
-            uID,
-            "','2','",
-            new$edrpou[i],
-            "','EDRPOU');",
-            sep = ""
-          )
-        conINSERT(SQL)
-      }
+        #ЕДРПОУ предприятия
+        if (!is.na(new$edrpou[i])) {
+          SQL <-
+            paste(
+              "INSERT INTO user_data (user_id,field_id,field_val,field_name) VALUES ('",
+              uID,
+              "','2','",
+              new$edrpou[i],
+              "','EDRPOU');",
+              sep = ""
+            )
+          dbMANIPULATE(SQL)
+        }
 
-      #телефон предприятия
-      if (!is.na(new$tel_comp[i])) {
-        SQL <-
-          paste(
-            "INSERT INTO user_data (user_id,field_id,field_val,field_name) VALUES ('",
-            uID,
-            "','3','",
-            new$tel_comp[i],
-            "','Tel.');",
-            sep = ""
-          )
-        conINSERT(SQL)
-      }
+        #телефон предприятия
+        if (!is.na(new$tel_comp[i])) {
+          SQL <-
+            paste(
+              "INSERT INTO user_data (user_id,field_id,field_val,field_name) VALUES ('",
+              uID,
+              "','3','",
+              new$tel_comp[i],
+              "','Tel.');",
+              sep = ""
+            )
+          dbMANIPULATE(SQL)
+        }
 
-      #сайт предприятия
-      if (!is.na(new$web[i])) {
-        SQL <-
-          paste(
-            "INSERT INTO user_data (user_id,field_id,field_val,field_name) VALUES ('",
-            uID,
-            "','5','",
-            new$web[i],
-            "','Web');",
-            sep = ""
-          )
-        conINSERT(SQL)
-      }
+        #сайт предприятия
+        if (!is.na(new$web[i])) {
+          SQL <-
+            paste(
+              "INSERT INTO user_data (user_id,field_id,field_val,field_name) VALUES ('",
+              uID,
+              "','5','",
+              new$web[i],
+              "','Web');",
+              sep = ""
+            )
+          dbMANIPULATE(SQL)
+        }
 
-      #направление деятельности
-      if (!is.na(new$activity[i])) {
-        SQL <-
-          paste(
-            "INSERT INTO user_data (user_id,field_id,field_val,field_name) VALUES ('",
-            uID,
-            "','6','",
-            new$activity[i],
-            "','Activity');",
-            sep = ""
-          )
-        conINSERT(SQL)
-      }
+        #направление деятельности
+        if (!is.na(new$activity[i])) {
+          SQL <-
+            paste(
+              "INSERT INTO user_data (user_id,field_id,field_val,field_name) VALUES ('",
+              uID,
+              "','6','",
+              new$activity[i],
+              "','Activity');",
+              sep = ""
+            )
+          dbMANIPULATE(SQL)
+        }
 
-      #отдел
-      if (!is.na(new$dep[i])) {
-        SQL <-
-          paste(
-            "INSERT INTO user_data (user_id,field_id,field_val,field_name) VALUES ('",
-            uID,
-            "','8','",
-            new$dep[i],
-            "','Department');",
-            sep = ""
-          )
-        conINSERT(SQL)
-      }
+        #отдел
+        if (!is.na(new$dep[i])) {
+          SQL <-
+            paste(
+              "INSERT INTO user_data (user_id,field_id,field_val,field_name) VALUES ('",
+              uID,
+              "','8','",
+              new$dep[i],
+              "','Department');",
+              sep = ""
+            )
+          dbMANIPULATE(SQL)
+        }
 
-      #должность
-      if (!is.na(new$pos[i])) {
-        SQL <-
-          paste("UPDATE users SET posada='",
-                new$pos[i],
+        #должность
+        if (!is.na(new$pos[i])) {
+          SQL <-
+            paste("UPDATE users SET posada='",
+                  new$pos[i],
+                  "' WHERE id=",
+                  uID,
+                  ";",
+                  sep = "")
+          dbMANIPULATE(SQL)
+        }
+
+        #заполнение полей таблицы users
+        #почта
+        SQLmail <-
+          paste("UPDATE users SET email='",
+                new$email[i],
                 "' WHERE id=",
                 uID,
                 ";",
                 sep = "")
-        conINSERT(SQL)
-      }
+        dbMANIPULATE(SQLmail)
 
-      #заполнение полей таблицы users
-      #почта
-      SQLmail <-
-        paste("UPDATE users SET email='",
-              new$mail_p[i],
-              "' WHERE id=",
-              uID,
-              ";",
-              sep = "")
-      conINSERT(SQLmail)
+        #телефон
+        SQLtel <-
+          paste("UPDATE users SET tel='",
+                new$tel[i],
+                "' WHERE id=",
+                uID,
+                ";",
+                sep = "")
+        dbMANIPULATE(SQLtel)
 
-      #телефон
-      SQLtel <-
-        paste("UPDATE users SET tel='",
-              new$tel[i],
-              "' WHERE id=",
-              uID,
-              ";",
-              sep = "")
-      conINSERT(SQLtel)
+        #адрес
+        SQLadr <-
+          paste("UPDATE users SET adr='",
+                uAdr,
+                "' WHERE id=",
+                uID,
+                ";",
+                sep = "")
+        dbMANIPULATE(SQLadr)
 
-      #адрес
-      SQLadr <-
-        paste("UPDATE users SET adr='",
-              uAdr,
-              "' WHERE id=",
-              uID,
-              ";",
-              sep = "")
-      conINSERT(SQLadr)
 
-      #===рассылка уведомления===#
-      #письмо по абзацам
-      zLetter <-
-        read.csv("reg_letter.csv",
-                 encoding = "UTF-8",
-                 stringsAsFactors = FALSE)
+        #===рассылка уведомления===#
+        #письмо по абзацам
+        zLetter <-
+          read.csv("reg_letter.csv",
+                   encoding = "UTF-8",
+                   stringsAsFactors = FALSE)
 
-      #отправка
-      send.mail(
-        from = c(zDmin[10]),
-        to = new$mail_p[i],
-        bcc = "admin@e-tpp.org",
-        replyTo = c(zDmin[11]),
-        subject = paste(zLetter$p0, uName, sep = ""),
-        body = paste(
-          zLetter$p1,
-          "\n\n",
-          zLetter$p2,
-          "\n\n",
-          zLetter$p3,
-          "\n",
-          zLetter$p4,
-          uLogin,
-          "\n",
-          zLetter$p5,
-          uPass,
-          "\n\n",
-          zLetter$p6,
-          "\n\n",
-          zLetter$p7,
-          "\n---\n",
-          zLetter$p8,
-          "\n",
-          zLetter$p9,
-          "\n",
-          zLetter$p10,
-          "\n",
-          zLetter$p11,
-          sep = ""
-        ),
-        encoding = "utf-8",
-        smtp = list(
-          host.name = "smtp.gmail.com",
-          port = 465,
-          user.name = zDmin[12],
-          passwd = zDmin[5],
-          ssl = TRUE
-        ),
-        authenticate = TRUE,
-        send = TRUE
-      )
+        #отправка
+        send.mail(
+          from = c(zDmin[10]),
+          to = uLogin,
+          bcc = "admin@e-tpp.org",
+          replyTo = c(zDmin[11]),
+          subject = paste(zLetter$p0, uName, sep = ""),
+          body = paste(
+            zLetter$p1,
+            "\n\n",
+            zLetter$p2,
+            "\n\n",
+            zLetter$p3,
+            "\n",
+            zLetter$p4,
+            uLogin,
+            "\n",
+            zLetter$p5,
+            uPass,
+            "\n\n",
+            zLetter$p6,
+            "\n\n",
+            zLetter$p7,
+            "\n---\n",
+            zLetter$p8,
+            "\n",
+            zLetter$p9,
+            "\n",
+            zLetter$p10,
+            "\n",
+            zLetter$p11,
+            sep = ""
+          ),
+          encoding = "utf-8",
+          smtp = list(
+            host.name = "smtp.gmail.com",
+            port = 465,
+            user.name = zDmin[12],
+            passwd = zDmin[5],
+            ssl = TRUE
+          ),
+          authenticate = TRUE,
+          send = TRUE
+        )
 
-      cat(paste("Registration of", uName, "has been successful\n", sep = " "))
+        cat(paste("Registration of", uName, "has been successful\n", sep = " "))
+
+      },
+
+      #откат (удаление пользователя) в случае неудачной попытки внесения данных
+      error = function(e) {
+        SQLdelUsr <-
+          paste("DELETE FROM users WHERE id=",
+                uID,
+                ";",
+                sep = "")
+        dbMANIPULATE(SQLdelUsr)
+
+        SQLdelUsrData <-
+          paste("DELETE FROM user_data WHERE user_id=",
+                uID,
+                ";",
+                sep = "")
+        dbMANIPULATE(SQLdelUsrData)
+
+        cat(paste("Registration of", uName, "has failed\n", sep = " "))
+      })
     }
   }
-
-  #окончание сессии и ручная остановка сервера(!)
+  #окончание сессии и обязательная (!) ручная остановка сервера
   remDr$close()
   system2("curl.exe", args = "-s http://localhost:4444/extra/LifecycleServlet?action=shutdown") #-s for silent mode
 
