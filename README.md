@@ -27,13 +27,13 @@
 1. Установить ```R``` (текущая версия [R-3.3.3](https://cran.r-project.org/))
 2. Для переноса данных из Google Form - настроить [сохранение ответов](https://support.google.com/docs/answer/2917686?hl=ru) в электронной таблице  
 3. Для работы с анкетными данными из ```R``` - электронную таблицу [опубликовать в Интернет](https://support.google.com/docs/answer/37579?hl=ru)
-4. Для запуска и работы Selenium Server - 
+4. Для запуска и работы c [Selenium Server](https://cran.r-project.org/web/packages/RSelenium/RSelenium.pdf) из ```R``` - 
 * [загрузить geckodriver.exe](https://github.com/mozilla/geckodriver/releases) и прописать путь к файлу в переменной PATH
 * установить бесплатный [веб-браузер Firefox](https://www.mozilla.org/ru/firefox/new/)
 5. Для остановки Selenium Server из ```R``` - загрузить [curl.exe](https://curl.haxx.se/download.html) и прописать путь к файлу в переменной PATH
 6. Для [запуска R-sript из bat-файла](http://stackoverflow.com/questions/6788928/how-to-run-a-r-language-r-file-using-batch-file) - прописать путь к R.exe в переменной PATH (*например, D:\Install\R\R-3.3.3\bin\x64*)
 
-**Примечание.** Если решить [проблему с запуском Selenium Server через rsDriver()](https://github.com/woldemarg/zenlix_registration/issues/1) -необходимость в совершении дейсвий по пп.4-5 отпадает. 
+>**Примечание.** Если решить [проблему с запуском Selenium Server через rsDriver()](https://github.com/woldemarg/zenlix_registration/issues/1) -необходимость в совершении дейсвий по пп.4-5 отпадает. 
 
 ### Библиотеки R
 Для ускорения работы R-script используется минимальный набор сторонних библиотек:
@@ -43,3 +43,26 @@ library(RMySQL)    #работа с БД phpmyadmin
 library(RSelenium) #навигация в Интернет
 library(mailR)     #рассылка почты
 ```
+
+### Алгоритм R-script
+Общая последовательность такая:
+1. -- загрузка проверенных анкет из электронной таблицы
+2. -- выборка ранее не зарегистрированных пользователей
+3. -- если есть новые пользователи:
+4. -- -- старт Selenium Server и вход в систему под администратором
+5. -- -- для каждого нового пользователя:
+6. -- -- -- -- создание профиля средствами системы
+7. -- -- -- -- добавление данных в *users* и *user_data* через ```SQL```-запросы
+8. -- -- -- -- если ошибка на п.7
+9. -- -- -- -- -- отмена предыдущих транзакций (п.6 и п.7) 
+9. -- -- -- -- -- иначе: отправка письма-уведомления
+10. -- -- остановка Selenium Server и выход из программы
+11. -- -- иначе: выход из программы
+
+>**Примечание 1.** Подробные комментарии приведены прямо внутри кода в файле *zen_reg.R*
+>
+>**Примечание 2.** Первая проверка на уникальность логина (email) нового пользователя реализована в электронной таблице через [функцию поиска дубликатов](https://productforums.google.com/forum/#!topic/docs/IDRsyJWM7yc;context-place=topicsearchin/docs/category$3Ahow-do-i%7Csort:relevance%7Cspell:false)
+>
+>**Примечание 3.** Автоматический запуск R-script по расписанию реализован через [создание задачи в плаировщике Windows](http://stackoverflow.com/questions/2793389/scheduling-r-script) 
+ 
+
