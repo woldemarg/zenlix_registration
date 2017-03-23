@@ -1,4 +1,5 @@
 #===минимум сторонних библиотек===#
+library(gsheet)    #импорт данных
 library(DBI)       #для работы RMySQL
 library(RMySQL)    #работа с БД phpmyadmin
 library(RSelenium) #навигация в Интернет
@@ -53,26 +54,27 @@ dbMANIPULATE <- function(q, FUN = dbExecute) {
 #список логинов активных пользователей (status = 1)
 regLogs <- dbSELECT("SELECT login FROM users WHERE status=1")
 
-#список пользователей из google forms с проверенными анкетами
+#список пользователей из google spreadsheet с проверенными анкетами
 allForms <-
-  read.csv(url(zDmin[8]),
-           encoding = "UTF-8",
+  read.csv(text = gsheet2text(zDmin[8], format = "csv"),
            stringsAsFactors = FALSE)
 
 okForms <- subset(allForms, status == "ok")
 
 #список новых пользователей для регистрации
-usrs <- okForms[!tolower(okForms$email) %in% regLogs$login,]
+usrs <- okForms[!tolower(okForms$email) %in% regLogs$login, ]
 
 #проверка наличия данных для внесения в БД
 if (nrow(usrs) != 0) {
   #удаление апострофов в тексте для избежания ошибок в SQL-statements
-  new <-
-    as.data.frame(t(sapply(
-      usrs, gsub, pattern = "'", replacement = ""
-    )))
+  noApos <- sapply(usrs, gsub, pattern = "'", replacement = "")
 
-  #===вход в админ-панель===#
+  #транспонирование таблицы
+  if (nrow(usrs) == 1) {
+    new <- as.data.frame(t(noApos))
+  } else {
+    new <- as.data.frame(noApos)
+  }
 
   #проверка статуса сервера и остановка, если был запущен в фоне
   oldw <- getOption("warn")
@@ -102,14 +104,17 @@ if (nrow(usrs) != 0) {
     readLines("http://localhost:4444/wd/hub/status")
     options(warn = oldw) #warns on
   },
+
   error = function(e) {
     Sys.sleep(15) #дополнительное время ожидания
   },
+
   finally = {
     #открытие браузера и навигация
     remDr <- remoteDriver()
     remDr$open(silent = TRUE) #без вывода сообщений в консоль
-    Sys.sleep(20) #ожидание запуска сервера - 20 сек. (для рабочего ПК)
+
+    #===вход в админ-панель===#
     remDr$navigate("http://online.e-tpp.org")
     remDr$setImplicitWaitTimeout(milliseconds = 5000)
     remDr$findElement(using = "css", "input[name = 'login']")$sendKeysToElement(list(zDmin[1]))
@@ -128,6 +133,8 @@ if (nrow(usrs) != 0) {
         paste(new$adr_str[i], new$adr_city[i], new$adr_index[i], sep = ", ")
 
       uLogin <- tolower(new$email[i])
+
+      cat(paste("Registering", uName, "...", sep = " "))
 
       #===создания нового пользователя===#
       remDr$navigate("http://online.e-tpp.org/users?create")
@@ -331,12 +338,7 @@ if (nrow(usrs) != 0) {
             send = TRUE
           )
 
-          cat(paste(
-            "Registration of",
-            uName,
-            "has been successful\n",
-            sep = " "
-          ))
+          cat(" ok\n")
         },
 
         #откат (удаление пользователя) в случае неудачной попытки внесения данных
@@ -355,7 +357,7 @@ if (nrow(usrs) != 0) {
                   sep = "")
           dbMANIPULATE(SQLdelUsrData)
 
-          cat(paste("Registration of", uName, "has failed\n", sep = " "))
+          cat(" error\n")
         })
       }
     }
@@ -366,5 +368,5 @@ if (nrow(usrs) != 0) {
   })
 
 } else {
-  cat("You've got no users to register")
+  cat("No users to register")
 }
