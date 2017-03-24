@@ -62,7 +62,7 @@ allForms <-
 okForms <- subset(allForms, status == "ok")
 
 #список новых пользователей для регистрации
-usrs <- okForms[!tolower(okForms$email) %in% regLogs$login, ]
+usrs <- okForms[!tolower(okForms$email) %in% regLogs$login,]
 
 #проверка наличия данных для внесения в БД
 if (nrow(usrs) != 0) {
