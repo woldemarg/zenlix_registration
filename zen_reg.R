@@ -83,12 +83,11 @@ if (nrow(usrs) != 0) {
   isSeleniumRunning <-
     tryCatch(
       readLines("http://localhost:4444/wd/hub/status"),
-      error = function(e) {
-        #no error message
-      }
+      error = function(e)
+        e
     )
 
-  if (!inherits(isSeleniumRunning, "try-error")) {
+  if (!inherits(isSeleniumRunning, "error")) {
     system2("curl.exe", args = "-s http://localhost:4444/extra/LifecycleServlet?action=shutdown") #-s for silent mode
   }
 
