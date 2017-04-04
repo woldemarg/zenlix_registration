@@ -284,6 +284,13 @@ if (nrow(usrs) != 0) {
                   sep = "")
           dbMANIPULATE(SQLadr)
 
+          #язык
+          SQLlang <-
+            paste("UPDATE users SET lang='ua' WHERE id=",
+                  uID,
+                  ";",
+                  sep = "")
+          dbMANIPULATE(SQLlang)
 
           #===рассылка уведомления===#
           #письмо по абзацам
