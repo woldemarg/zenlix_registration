@@ -46,6 +46,7 @@
 Минимальный набор сторонних библиотек:
 ```R
 library(gsheet) #импорт данных
+library(readr)     #чтение csv
 library(DBI) #для работы RMySQL
 library(RMySQL) #работа с БД phpmyadmin
 library(RSelenium) #навигация в Интернет
