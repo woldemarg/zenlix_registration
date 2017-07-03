@@ -35,7 +35,7 @@
 4. Для запуска из ```R``` и работы c Selenium Server - 
 	* [загрузить geckodriver.exe](https://github.com/mozilla/geckodriver/releases) и прописать путь к файлу в системной переменной PATH
 	* [скачать файл selenium-server-standalone-3.0.1.jar](selenium-server-standalone-3.0.1.jar) и поместить в папку проекта
-	* установить бесплатный [веб-браузер Firefox](https://www.mozilla.org/ru/firefox/new/)
+	* установить бесплатный [веб-браузер Firefox строго версии 49.0](https://ftp.mozilla.org/pub/firefox/releases/49.0.2/win64/en-GB/)
 	* [установить Java](https://java.com/ru/download/) и прописать путь к файлу *java.exe* в системной переменной PATH 
 5. Для остановки Selenium Server из ```R``` - загрузить [curl.exe](https://curl.haxx.se/download.html) и прописать путь к файлу в системной переменной PATH (при этом **важно** работать с именно с файлом selenium-server-standalone-3.0.1.jar)
 6. Для [запуска R-script из bat-файла](http://stackoverflow.com/questions/6788928/how-to-run-a-r-language-r-file-using-batch-file) - прописать путь к RScript.exe в системной переменной PATH (*например, D:\Install\R\R-3.3.3\bin\x64*)

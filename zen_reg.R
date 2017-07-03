@@ -58,7 +58,7 @@ regLogs <- dbSELECT("SELECT login FROM users WHERE status=1")
 
 #список пользователей из google spreadsheet с проверенными анкетами
 counter <- 0
-attempt_num <- 25
+attempt_num <- 35
 repeat {
   counter <- counter + 1
   allForms <- tryCatch(
