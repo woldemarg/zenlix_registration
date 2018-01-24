@@ -1,5 +1,5 @@
 #===минимум сторонних библиотек===#
-library(gsheet)    #импорт данных
+library(methods)
 library(readr)     #чтение csv
 library(DBI)       #для работы RMySQL
 library(RMySQL)    #работа с БД phpmyadmin
@@ -20,6 +20,7 @@ if (args[1] == "atHome") {
 } else if (args[1] == "atWork") {
   host <- zDmin[6]
 }
+
 
 #===функции RMySQL===#
 dbSELECT <- function(q, FUN = dbGetQuery) {
@@ -56,21 +57,10 @@ dbMANIPULATE <- function(q, FUN = dbExecute) {
 #список логинов активных пользователей (status = 1)
 regLogs <- dbSELECT("SELECT login FROM users WHERE status=1")
 
-#список пользователей из google spreadsheet с проверенными анкетами
-counter <- 0
-attempt_num <- 35
-repeat {
-  counter <- counter + 1
-  allForms <- tryCatch(
-    read_csv(gsheet2text(zDmin[8])),
-    error = function(e)
-      e
-  )
-  if (!inherits(allForms, "error") | !(counter < attempt_num)) {
-    break
-  }
-  Sys.sleep(5)
-}
+download.file(zDmin[8], "../reg_db.csv", quiet = TRUE)
+
+allForms <-
+  read_csv("../reg_db.csv", col_types = c(rep(col_character(), 20)))
 
 if (!inherits(allForms, "error")) {
   okForms <- subset(allForms, status == "ok")
@@ -124,7 +114,7 @@ if (!inherits(allForms, "error")) {
 
     finally = {
       #открытие браузера и навигация
-      remDr <- remoteDriver()
+      remDr <- remoteDriver(browserName = "phantomjs")
       remDr$open(silent = TRUE) #без вывода сообщений в консоль
 
       #===вход в админ-панель===#
@@ -307,6 +297,7 @@ if (!inherits(allForms, "error")) {
             dbMANIPULATE(SQLlang)
 
             #===рассылка уведомления===#
+
             #письмо по абзацам
             zLetter <-
               read.csv("reg_letter.csv",
@@ -384,12 +375,11 @@ if (!inherits(allForms, "error")) {
 
       #окончание сессии и обязательная (!) ручная остановка сервера
       remDr$close()
+      Sys.sleep(5)
       system2("curl.exe", args = "-s http://localhost:4444/extra/LifecycleServlet?action=shutdown") #-s for silent mode
     })
 
   } else {
     cat("No users to register")
   }
-} else {
-  cat(paste("Fail to access data after ", attempt_num, "attempts"))
 }

@@ -35,10 +35,11 @@
 4. Для запуска из ```R``` и работы c Selenium Server - 
 	* [загрузить geckodriver.exe](https://github.com/mozilla/geckodriver/releases) и прописать путь к файлу в системной переменной PATH
 	* [скачать файл selenium-server-standalone-3.0.1.jar](selenium-server-standalone-3.0.1.jar) и поместить в папку проекта
-	* установить бесплатный [веб-браузер Firefox строго версии 49.0](https://ftp.mozilla.org/pub/firefox/releases/49.0.2/win64/en-GB/)
+	* загрузить файл [phantomjs.exe](http://phantomjs.org/download.html) и прописать путь к нему в системной переменной PATH
 	* [установить Java](https://java.com/ru/download/) и прописать путь к файлу *java.exe* в системной переменной PATH 
 5. Для остановки Selenium Server из ```R``` - загрузить [curl.exe](https://curl.haxx.se/download.html) и прописать путь к файлу в системной переменной PATH (при этом **важно** работать с именно с файлом selenium-server-standalone-3.0.1.jar)
 6. Для [запуска R-script из bat-файла](http://stackoverflow.com/questions/6788928/how-to-run-a-r-language-r-file-using-batch-file) - прописать путь к RScript.exe в системной переменной PATH (*например, D:\Install\R\R-3.3.3\bin\x64*)
+7. Для рассылки писем с помощью ```mailR``` через gmail SMTP - включить разрешение для "less secure apps" в [своем аккаунте](https://myaccount.google.com/security?pli=1#connectedapps) 
 
 >**Примечание.** Если [проблема с запуском Selenium Server через rsDriver()](https://github.com/woldemarg/zenlix_registration/issues/1) не возникает, то необходимости в совершении действий пп.4-5 нет. 
 
