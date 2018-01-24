@@ -10,16 +10,14 @@ library(mailR)     #рассылка почты
 #===basic settings===#
 setwd("D:/OneDrive/myRepos/zenlix_registration") #рабочая директория
 
-args <-
-  commandArgs(trailingOnly = TRUE) #чтение аргументов из bat-файла
+#args <- commandArgs(trailingOnly = TRUE) #чтение аргументов из bat-файла
 
 zDmin <- read_lines("../etpp.txt") #скрытые параметры
 
-if (args[1] == "atHome") {
-  host <- zDmin[7]
-} else if (args[1] == "atWork") {
+# if (args[1] == "atHome") {
+#   host <- zDmin[7]
   host <- zDmin[6]
-}
+# }
 
 
 #===функции RMySQL===#
